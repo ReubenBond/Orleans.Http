@@ -5,6 +5,6 @@ namespace TestGrains
 {
     public interface ITestGrain : IGrainWithStringKey
     {
-        Task Test();
+        Task<string> Test();
     }
 }

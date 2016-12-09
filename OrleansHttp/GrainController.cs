@@ -9,12 +9,13 @@ using System.Linq;
 using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Web.Http;
 using TestGrains;
 
 namespace OrleansHttp
 {
 
-    public class GrainController
+    public class GrainController : ApiController
     {
         public TaskScheduler TaskScheduler { get; private set; }
         public IProviderRuntime ProviderRuntime { get; private set; }
@@ -22,43 +23,36 @@ namespace OrleansHttp
         ConcurrentDictionary<string, MethodInfo> grainMethodCache = new ConcurrentDictionary<string, MethodInfo>();
         ConcurrentDictionary<string, Type> grainTypeCache = new ConcurrentDictionary<string, Type>();
 
-        public GrainController(Router router, TaskScheduler taskScheduler, IProviderRuntime providerRuntime)
+        public GrainController(TaskScheduler taskScheduler, IProviderRuntime providerRuntime)
         {
             this.TaskScheduler = taskScheduler;
             this.ProviderRuntime = providerRuntime;
-
-            Action<string, Func<IOwinContext, IDictionary<string, string>, Task>> add = router.Add;
-
-            add("/grain/:type/:id/:method", CallGrain);
-            add("/grain/:type/:id/:method/:classprefix", CallGrain);
-            add("/pinggrain", PingGrain);
-            add("/ping", Ping);
         }
 
-        Task Ping(IOwinContext context, IDictionary<string, string> parameters)
+        Task Get()
         {
             return TaskDone.Done;    
         }
 
-        async Task PingGrain(IOwinContext context, IDictionary<string, string> parameters)
+        /*
+        async Task<string> PingGrain()
         {
             var result = await Dispatch(async () =>
             {
                 var grain = ProviderRuntime.GrainFactory.GetGrain<ITestGrain>("0");
                 await grain.Test();
-                return null;
-            });
+                return "ok";
+            }) as string;
+            return result;
         }
+        */
 
-
-
-        async Task CallGrain(IOwinContext context, IDictionary<string, string> parameters)
+        public async Task<object> Post(string grainTypeName, string grainId, string grainMethodName)
         {
-            var grainTypeName = parameters["type"];
-            var grainId = parameters["id"];
-            var classPrefix = parameters.ContainsKey("classprefix") ? parameters["classprefix"] : null;
-            var grainMethodName = parameters["method"];
+            // for testing, let's just say hello!
+            return Task.FromResult("hello");
 
+            string classPrefix = null;
             var grainType = GetGrainType(grainTypeName);
             var grainFactory = GetGrainFactoryWithCache(grainTypeName);
 
@@ -67,7 +61,8 @@ namespace OrleansHttp
             var grainMethod = this.grainMethodCache.GetOrAdd($"{grainTypeName}.{grainMethodName}", x => grainType.GetMethod(grainMethodName));
             if (null == grainMethod) throw new MissingMethodException(grainTypeName, grainMethodName);
 
-            var grainMethodParams = GetGrainParameters(grainMethod, context).ToArray();
+            // this.Request.RequestUri.Query
+            var grainMethodParams = GetGrainParameters(grainMethod, new Dictionary<string,string>()).ToArray();
           
             var result = await Dispatch(async () =>
             {
@@ -79,16 +74,16 @@ namespace OrleansHttp
                 if (null != resultProperty) return resultProperty.GetValue(task);
                 return null;
             });
-       
-            await context.ReturnJson(result);
+
+            return result;
         }
 
 
-        IEnumerable<object> GetGrainParameters(MethodInfo grainMethod, IOwinContext context)
+        IEnumerable<object> GetGrainParameters(MethodInfo grainMethod, IDictionary<string,string> query)
         {
             foreach (var param in grainMethod.GetParameters())
             {
-                var value = context.Request.Query[param.Name];
+                var value = query[param.Name];
                 if (null == value)
                 {
                     yield return null;

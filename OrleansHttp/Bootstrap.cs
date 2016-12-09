@@ -1,9 +1,13 @@
 ﻿using Microsoft.Owin.Hosting;
+using Microsoft.Practices.Unity;
 using Orleans;
 using Orleans.Providers;
 using Orleans.Runtime;
+using Owin;
 using System;
+using System.Threading;
 using System.Threading.Tasks;
+using System.Web.Http;
 
 namespace OrleansHttp
 {
@@ -17,7 +21,7 @@ namespace OrleansHttp
 
         public Task Close()
         {
-            host.Dispose();
+            if (null != host) host.Dispose();
             return TaskDone.Done;
         }
 
@@ -27,23 +31,33 @@ namespace OrleansHttp
             this.logger = providerRuntime.GetLogger(name);
             this.Name = name;
 
-            var router = new Router();
-            new GrainController(router, TaskScheduler.Current,  providerRuntime);
+            var taskScheduler = TaskScheduler.Current;
+            var port = config.Properties.ContainsKey("Port") ? int.Parse(config.Properties["Port"]) : 8080;
 
-            var options = new StartOptions
+            this.host = WebApp.Start($"http://localhost:{port}",  appBuilder => 
             {
-                ServerFactory = "Nowin",
-                Port = config.Properties.ContainsKey("Port") ? int.Parse(config.Properties["Port"]) : 8080,
-            };
+                var httpConfig = new HttpConfiguration();
 
-            var username = config.Properties.ContainsKey("Username") ? config.Properties["Username"] : null;
-            var password = config.Properties.ContainsKey("Password") ? config.Properties["Password"] : null;
+                // grain/ITestGrain/0/Test/
+                httpConfig.Routes.MapHttpRoute(
+                    name: "DefaultApi",
+                    routeTemplate: "grain/{grainTypeName}/{grainId}/{grainMethodName}",
+                    defaults: new { controller = "Grain", action = "Post" }
+                );
 
-            host = WebApp.Start(options, app => new WebServer(router, username, password).Configure(app));
+                var container = new UnityContainer();
+                container.RegisterInstance(providerRuntime);
+                container.RegisterInstance(taskScheduler);
+                httpConfig.DependencyResolver = new UnityResolver(container);
 
-            this.logger.Verbose($"HTTP API listening on {options.Port}");
+                appBuilder.UseWebApi(httpConfig);
+            });
+            
+            this.logger.Verbose($"HTTP API listening on {port}");
 
-            return Task.FromResult(0);
+            return TaskDone.Done;
         }
     }
+
+  
 }

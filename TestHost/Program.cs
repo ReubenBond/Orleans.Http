@@ -56,6 +56,10 @@ namespace TestHost
             {
                 Console.WriteLine("Web server running at http://localhost:8080/");
 
+                Console.WriteLine("try a POST to http://localhost:8080/grain/ITestGrain/0/Test");
+                Console.WriteLine("Press ENTER to exit...");
+                Console.ReadLine();
+                /*
                 // warm up
                 Console.WriteLine("WARM UP");
                 RunAllTests();
@@ -66,7 +70,7 @@ namespace TestHost
                 RunAllTests();
 
                 Console.WriteLine("Press ENTER to exit...");
-                Console.ReadLine();
+                Console.ReadLine();*/
             }
         }
 
@@ -74,11 +78,11 @@ namespace TestHost
         {
             var grainOverhead = RunDirectTests();
             var httpTimeWithReflection = RunHttpTests("http://localhost:8080/grain/ITestGrain/0/Test/");
-            var httpTimeWithPingGrain = RunHttpTests("http://localhost:8080/pinggrain");
-            var httpTimeWithPing = RunHttpTests("http://localhost:8080/ping");
+            //var httpTimeWithPingGrain = RunHttpTests("http://localhost:8080/pinggrain");
+            //var httpTimeWithPing = RunHttpTests("http://localhost:8080/ping");
 
             // rough calculation
-            Console.WriteLine($"Reflection overhead = {httpTimeWithReflection - httpTimeWithPingGrain} = {100 * (httpTimeWithReflection - httpTimeWithPingGrain) / httpTimeWithReflection}%");
+            //Console.WriteLine($"Reflection overhead = {httpTimeWithReflection - httpTimeWithPingGrain} = {100 * (httpTimeWithReflection - httpTimeWithPingGrain) / httpTimeWithReflection}%");
         }
 
         static long RunDirectTests()
@@ -102,6 +106,8 @@ namespace TestHost
             for (var i = 0; i < testSize; i++)
             {
                 var request = WebRequest.Create(url);
+                request.Method = "POST";
+                request.ContentLength = 0;
                 using (request.GetResponseAsync().Result)
                 { }
             }
